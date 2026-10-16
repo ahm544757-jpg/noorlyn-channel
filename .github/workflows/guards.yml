@@ -1,0 +1,90 @@
+name: guards
+
+# الحراس على بنية التكامل المستمر خارج الصندوق (§١/٨).
+# بيت القناة عام، فدقائق Actions عليه غير محدودة قياسًا — وهذا سبب اختيار GitHub (§٤).
+#
+# ما يفعله: يفحص بنية المستودع دون أن يفكّ أي حجم. فالمضمون مشفّر ولا يملك CI مفتاحه،
+# وهذا مقصود: الحارس يحمي البنية لا يقرأ المعرفة.
+
+on: [push, pull_request]
+
+jobs:
+  structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: الإعلان القانوني موجود (§٣/١)
+        run: |
+          test -f LICENSE-NOTICE.md || { echo "::error::LICENSE-NOTICE.md missing — §٣/١ requires the public rights notice"; exit 1; }
+          grep -q "ALL RIGHTS RESERVED" LICENSE-NOTICE.md || { echo "::error::rights declaration incomplete"; exit 1; }
+
+      - name: قائمة الإباحة — لا مضمون خارج vault/ (§٣/١، default-deny)
+        run: |
+          # العلّة التي دُفع ثمنها ثلاث مرات: كان الفحص `^inner/` — مسارًا حرفيًّا لا قاعدة.
+          # ففي الثالثة فُكّ حجم إلى جذر المستودع فظهرت الحالة/ والعمل/ والمعرفة/ والملاحق/
+          # بلا بادئة inner/، فدُفعت مكشوفة. **المباح معدود وكل ما عداه مرفوض.**
+          # -z إجباري: git يقتبس المسارات غير اللاتينية (واردة ٠٠١).
+          ALLOWED=$(printf '%s\n' .github .gitignore LICENSE-NOTICE.md README.md STAGING-NOTICE.md guards scripts vault نبض)
+          BAD=$(git ls-files -z | tr '\0' '\n' | awk -v allow="$ALLOWED" '
+            BEGIN { n=split(allow,a,"\n"); for(i=1;i<=n;i++) ok[a[i]]=1 }
+            NF { t=$0; sub(/\/.*/,"",t); if (!(t in ok)) print $0 }')
+          if [ -n "$BAD" ]; then
+            echo "::error::مسار خارج قائمة الإباحة — بيت القناة عام وكل مضمون يُختم في vault/"
+            echo "$BAD" | sed 's/^/  offending: /'
+            exit 1
+          fi
+          # ودفاع في العمق: inner/ صريحًا
+          if git ls-files -z | tr '\0' '\n' | grep -q '^inner/'; then
+            echo "::error::inner/ is committed (§٣/١)"
+            exit 1
+          fi
+          echo "✓ الشجرة كلها داخل قائمة الإباحة: $(git ls-files -z | tr '\0' '\n' | wc -l) مسارًا"
+
+      - name: .gitignore قائمة إباحة لا سطرًا واحدًا
+        run: |
+          # كان الفحص `grep -qx 'inner/'` — وهو **أضيق من القاعدة** نفسها: يحرس اسمًا واحدًا.
+          grep -qx '/\*' .gitignore || { echo "::error::.gitignore must start default-deny with /*"; exit 1; }
+          for e in .github .gitignore LICENSE-NOTICE.md README.md guards scripts vault نبض; do
+            grep -qxF "!/$e" .gitignore || grep -qxF "!/$e/" .gitignore || {
+              echo "::error::.gitignore allowlist missing: $e"; exit 1; }
+          done
+          echo "✓ .gitignore default-deny بقائمة إباحة كاملة"
+
+
+      - name: لا سرّ في أي متن مدفوع (§١٠/٧ — حد أمان)
+        run: |
+          # git grep على الفهرس لا شجرة العمل، فالحارس يفحص ما سيُدفع فعلًا
+          if git grep --cached -lIE 'AGE-SECRET-KEY-[1]|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|BEGIN [A-Z ]*PRIVATE KEY|sk-[A-Za-z0-9]{32,}' -- . | head -5 | grep -q .; then
+            echo "::error::secret material committed — حد أمان، توقّف قاطع"
+            exit 1
+          fi
+
+      - name: الامتحان الذاتي للفاحص — واو م٧ (النفي قبل الثقة)
+        run: |
+          # إلزامية لأن فحصًا لم يُمتحن رفضُه يُنتج أمانًا زائفًا أخطر من غيابه.
+          # وقع ذلك ثلاث مرات في هذه القناة، إحداها فحص كان يمرّ **فراغًا** لأنه يعدّ
+          # علامة (`**الحارة**`) لا وجود لها في العقد — فكان العداد صفرًا دائمًا.
+          # يُمتحن على عيّنة تركيبية لأن inner/ مختوم (§٣/١) فلا يصله CI.
+          # يوجب تفسير م٢ v1.1 §٣: مقام معلن + طفرة/non-vacuity + طبع المقام في الدليل.
+          chmod +x guards/selftest.sh guards/state-contract.sh
+          bash guards/selftest.sh guards/fixtures/state-sample.md
+
+      - name: الأحجام مشفّرة فعلًا وليست نصًا صريحًا
+        run: |
+          shopt -s nullglob
+          vols=(vault/*.enc)
+          [ ${#vols[@]} -gt 0 ] || { echo "::warning::no volumes yet"; exit 0; }
+          for v in "${vols[@]}"; do
+            # ٣٢ باكتًا لا ٢٠: الترويسة "age-encryption.org/v1" طولها ٢١ حرفًا،
+            # فكان head -c 20 يقطع الحرف الأخير ويسقط المطابقة على أحجام صحيحة.
+            head -c 32 "$v" | grep -q 'age-encryption.org/v1' || { echo "::error::$v is not an age volume"; exit 1; }
+          done
+          echo "✓ ${#vols[@]} volume(s) carry the age header"
+
+      - name: الأدوات نصية وقابلة للتشغيل
+        run: |
+          for s in scripts/*.sh guards/*.sh; do
+            [ -e "$s" ] || continue
+            bash -n "$s" || { echo "::error::$s has a syntax error"; exit 1; }
+          done
