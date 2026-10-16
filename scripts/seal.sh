@@ -21,9 +21,16 @@ fi
 # ---- حارس النقوش: الحالة يجب أن تحمل خطوة تالية (§٦/٢، بطاقة م١: لا تترك الحالة بلا خطوة تالية) ----
 STATE="inner/الحالة/active-state.md"
 if [ -f "$STATE" ]; then
-  grep -q "الخطوة التالية حرفيًا" "$STATE" || { echo "FAIL: active-state.md lacks «الخطوة التالية حرفيًا» — refusing to seal (§٦/٢)"; exit 1; }
-  NEXT=$(sed -n '/الخطوة التالية حرفيًا/{n;p;}' "$STATE" | tr -d '[:space:]')
-  [ -n "$NEXT" ] || { echo "FAIL: «الخطوة التالية حرفيًا» is empty — refusing to seal (§٦/٢)"; exit 1; }
+  # ── مصدر واحد للحقيقة (م٢٢): لا يُعاد تنفيذ الفحص هنا بل يُستدعى الفاحص نفسه ──
+  # ملاحظة م٢ (موضع رفض ٢): كانت هنا نسخة مكررة معيبة «{n;p;}» تقرأ السطر **التالي**
+  # فتمرّر حالة فارغة (أخرجت ٣٥٤ حرفًا من سطر المراجعة الذاتية). الإصلاح الجذري:
+  # حذف النسخة المكررة وربط الختم بالفاحص نفسه — فلا مصدران للحقيقة (م٢٢، §٢/١٠).
+  GUARD="$(cd "$(dirname "$0")/.." && pwd)/guards/state-contract.sh"
+  [ -f "$GUARD" ] || { echo "FAIL: guard not found at $GUARD"; exit 1; }
+  if ! bash "$GUARD" "$STATE"; then
+    echo "FAIL: guards/state-contract.sh rejected the state — refusing to seal (§٦/٢)"
+    exit 1
+  fi
 fi
 
 # ---- رقم الحجم من النظام لا من عدّاد يدوي (§٤/٩) ----

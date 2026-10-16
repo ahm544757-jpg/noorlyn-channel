@@ -1,116 +1,107 @@
 #!/usr/bin/env bash
-# الامتحان الذاتي لفاحص عقد الحالة — (واو م٧: النفي قبل الثقة · تفسير v1.1 §٣: اللا-فراغ)
+# الامتحان الذاتي للفاحص — واو م٧ «النفي قبل الثقة»
+# الغرض: إثبات أن guards/state-contract.sh يرفض فعلًا، لا أنه يطبع ✓ على كل شيء.
 #
-# لماذا هذا الملف موجود: فاحصٌ لم يُمتحن رفضُه يُنتج أمانًا زائفًا أخطر من غيابه.
-# وقد وقع ذلك فعلًا ثلاث مرات: (١) فحص كان يقرأ السطر التالي فيملأ فراغًا؛
-# (٢) فحص كان يبحث في الملف كله؛ (٣) فحص كان يعدّ علامة لا وجود لها فيمرّ فراغًا.
-# الثلاثة مرّت على أنها "خضراء". فلا يُقبل فاحص بلا هذا الامتحان.
-#
-# قاعدة م٢١ §٣: **كل طفرة يجب أن يُتحقَّق أنها غيّرت الملف فعلًا** قبل الحكم على الفاحص.
-# طفرة لم تُغيّر شيئًا = امتحان فارغ، ويُحسب فشلًا في الامتحان لا نجاحًا للفاحص.
+# القاعدة الحاكمة (مستفادة من أربعة امتحانات معيبة كشفها م١ وم٢):
+#   ١. كل طفرة تُطبَّق على **بنية العقد**، لا على نصّ ملف بعينه — فطفرة مربوطة بنصّ
+#      معيّن تصير فارغة عند أول تحرير وتمرّ بصمت.
+#   ٢. **المُسخِّر يحكم على نفسه**: إن لم يتغيّر الملف بعد الطفرة فالطفرة فارغة،
+#      ويُحسب الامتحان فاشلًا لا ناجحًا. (كشف هذا: طفرات `empty_field` التي نسيت
+#      تمرير الوسيط إلى python فكانت عشر طفرات أصفارًا ومرّت «بنجاح».)
+#   ٣. المقام مشتقّ لا مكتوب.
+#   ٤. السلبي يُمتحن مع النفي — فاحص يرفض كل شيء بلا فائدة.
 set -uo pipefail
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(dirname "$HERE")"
-GUARD="$HERE/state-contract.sh"
-STATE="${1:-$ROOT/inner/الحالة/active-state.md}"
-W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
-cp "$STATE" "$W/ok.md"
+STATE="${1:-inner/الحالة/active-state.md}"
+GUARD="guards/state-contract.sh"
+[ -f "$STATE" ] || { echo "FAIL: no state at $STATE"; exit 2; }
+[ -f "$GUARD" ] || { echo "FAIL: no guard at $GUARD"; exit 2; }
 
-# العلة المصححة: كانت الطفرات تُمرَّر بـ `sed … | mut t1 "…"`، والجانب الأيمن من
-# الأنبوب يعمل في **صدفة فرعية** — فتعيينات المصفوفة لا تعود إلى الأصل، ويصير
-# `MUT_LINES[$t]` متغيرًا غير معرَّف. فصار التوقيع `mut <اسم> <ملف> <وصف>` بلا أنبوب.
-declare -A MUT_LINES MUT_DESC
-mut() {  # mut <اسم> <ملف الطفرة الجاهز> <وصف>
-  local name="$1" src="$2" desc="$3"
-  cp "$src" "$W/$name.md"
-  local d; d=$(diff "$W/ok.md" "$W/$name.md" | grep -c '^[<>]' || true)
-  MUT_LINES["$name"]=$d; MUT_DESC["$name"]=$desc
-}
+TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+cp "$STATE" "$TMP/base"
+BASE=$(sha256sum "$TMP/base" | cut -d' ' -f1)
 
-# --- الطفرات الخمس: كل واحدة تكسر شرطًا مختلفًا من العقد ---
-sed 's/^\(- \*\*الخطوة التالية حرفيًا:\*\*\).*/\1/' "$W/ok.md" > "$W/m1"
-mut t1 "$W/m1" "الخطوة التالية حرفيًا فارغة (§٦/٢: لا فعل واحد يُقلع منه)"
+T=0; R=0; VAC=0; FAILED_LIST=""
 
-# العلة المصححة (أ): كانت الطفرة مربوطة بنصّ الحالة الحقيقية («— تمثيل شخصي») فلا تنطبق
-# على أي ملف آخر — وكشفتها العيّنة التركيبية (طفرة فارغة ⟹ الامتحان يرفض نفسه).
-# فالطفرات يجب أن تكون **بنيوية** تستهدف ما يُسمّيه العقد، لا ألفاظًا من ملف بعينه.
-# العلة المصححة (ب): كُتبت أولًا بـ `python3 -c "…"` ونصّ مزدوج الاقتباس، فعلامات backtick
-# في مفردات التصنيف (`blocking-owner`) نُفِّذت **كاستبدال أمر** في shell ⟹ «command not found»
-# وطفرة فارغة. الحل: heredoc مُقتبس `<<'PY'` يمنع كل توسيع، والمتغيّر يُمرَّر بالبيئة.
-W="$W" python3 - <<'PYMUT'
-import re, os, sys
-W = os.environ['W']
-s = open(f'{W}/ok.md', encoding='utf-8').read()
-TOK = r'`(?:blocking-owner|blocking-research|reversible-default|irrelevant-to-scope)`'
-n = len(re.findall(TOK, s))
-open(f'{W}/m2', 'w', encoding='utf-8').write(re.sub(TOK, '`بلا-تصنيف`', s, count=1))
-print(f'    [t2] تصنيفات في الأصل: {n} — أُفسد واحد', file=sys.stderr)
-PYMUT
-mut t2 "$W/m2" "عائق بلا تصنيف من مفردات م١١/٢ (بوابة unclassified = 0)"
-
-awk '/^## العوائق/{s=1} s&&/^## [^#]/&&!/^## العوائق/{s=0} !s' "$W/ok.md" > "$W/m3"
-mut t3 "$W/m3" "جدول العوائق محذوف كله (حقل blockers ناقص)"
-
-sed 's/^\(- \*\*آخر فحص أخضر:\*\*\).*/\1 التطبيق شغال/' "$W/ok.md" > "$W/m4"
-mut t4 "$W/m4" "ادعاء «شغال» بلا زاوية ولا بيئة في السطر نفسه (م١٠/٦)"
-
-# العلة المصححة في الطفرة نفسها (رابع طفرة معيبة في هذه القناة):
-# كانت تضيف حارة باسم «مهمة ثانية حية» — والعقد لا يعرّف هذا الاسم، فالفاحص
-# محقٌّ في ألا يراها. الطفرة الصحيحة **تكرّر الحقل الذي يسمّيه العقد فعلًا**،
-# لأن §٤/٦ يُقاس على حقل `task` = «المهمة الواحدة الحية» بالضبط.
-# القاعدة: **الطفرة تكسر ما يُسمّيه العقد، لا ما يتخيله مؤلف الامتحان.**
-python3 -c "
-s=open('$W/ok.md',encoding='utf-8').read()
-s=s.replace('- **المهمة الواحدة الحية:**',
-            '- **المهمة الواحدة الحية:** تجهيز بيت الأدلة\n- **المهمة الواحدة الحية:**',1)
-open('$W/m5','w',encoding='utf-8').write(s)"
-mut t5 "$W/m5" "حارتان حيّتان: حقل «المهمة الواحدة الحية» مكرر (§٤/٦)"
-
-# وطفرة سادسة: الصفر أيضًا رفض — حالة بلا مهمة حية لا تُقلع منها جولة (واو م١١)
-python3 -c "
-s=open('$W/ok.md',encoding='utf-8').read()
-s=s.replace('- **المهمة الواحدة الحية:**','- **مهمة:**',1)
-open('$W/m6','w',encoding='utf-8').write(s)"
-mut t6 "$W/m6" "صفر حارة حيّة: الحقل مُعاد التسمية (واو م١١ + تفسير v1.1 §٣)"
-
-echo "الامتحان الذاتي لفاحص عقد الحالة"
-echo "  الفاحص : $GUARD"
-echo "  الحالة : $STATE"
-echo
-PASS=0; FAIL=0; VAC=0
-for t in t1 t2 t3 t4 t5 t6; do
-  d=${MUT_LINES[$t]}
-  if [ "$d" -eq 0 ]; then
-    printf '  %s  ⚠ طفرته فارغة (٠ أسطر) — امتحان معيب لا يُحتسب\n' "$t"; VAC=$((VAC+1)); continue
+# ---- صنف أ: إفراغ قيمة كل حقل سطري في العقد (١٣ حقلًا) ----
+FIELDS=( 'المهمة الواحدة الحية' 'صاحب المهمة' 'precondition' 'completion_marker' \
+         'idempotency_rule' 'resume_action' 'المرحلة' 'حالة المهمة' \
+         'آخر فحص أخضر' 'شكل التسليم' 'سطر مراجعة ذاتية' 'المدة الحقيقية المقدرة' \
+         'الخطوة التالية حرفيًا' )
+for f in "${FIELDS[@]}"; do
+  T=$((T+1))
+  python3 -c '
+import sys
+p=sys.argv[1]; L=open(p,encoding="utf-8").read().split("\n")
+name=sys.argv[2]; done=False
+for i,l in enumerate(L):
+    if l.startswith("- **"+name+":**"):
+        assert l.strip() != "- **"+name+":**", "فارغ أصلًا"
+        L[i]="- **"+name+":**"; done=True; break
+assert done, "الحقل غير موجود: "+name
+open(p,"w",encoding="utf-8").write("\n".join(L))' "$STATE" "$f" 2>"$TMP/err"
+  MUTRC=$?
+  NOW=$(sha256sum "$STATE" | cut -d' ' -f1)
+  if [ $MUTRC -ne 0 ] || [ "$NOW" = "$BASE" ]; then
+    VAC=$((VAC+1)); FAILED_LIST="$FAILED_LIST [فارغة:$f]"
+    cp "$TMP/base" "$STATE"; continue
   fi
-  if bash "$GUARD" "$W/$t.md" >/dev/null 2>&1; then
-    printf '  %s  ❌ الفاحص مَرَّرها (%s أسطرًا متغيّرة) — %s\n' "$t" "$d" "${MUT_DESC[$t]}"; FAIL=$((FAIL+1))
-  else
-    printf '  %s  ✅ رُفضت (%s أسطرًا متغيّرة) — %s\n' "$t" "$d" "${MUT_DESC[$t]}"; PASS=$((PASS+1))
-  fi
+  bash "$GUARD" "$STATE" >/dev/null 2>&1 && { FAILED_LIST="$FAILED_LIST [مرّت:$f]"; } || R=$((R+1))
+  cp "$TMP/base" "$STATE"
 done
-echo
-# --- السلبي: لا إنذار كاذب ---
-if bash "$GUARD" "$W/ok.md" >/dev/null 2>&1; then
-  echo "  سلبي ✅ الحالة السليمة تمرّ (لا إنذار كاذب)"; NEG=0
-else
-  echo "  سلبي ❌ الحالة السليمة رُفضت (إنذار كاذب — يعطّل كل جولة)"; NEG=1
+
+# ---- صنف ب: إسناد ملكية المهمة إلى المحقق (§٢/١١) ----
+T=$((T+1))
+python3 -c '
+import sys
+p=sys.argv[1]; s=open(p,encoding="utf-8").read()
+s2=s.replace("**صاحب المهمة:** م١","**صاحب المهمة:** م٢ — المحقق",1)
+assert s2!=s, "لم تتغيّر"
+open(p,"w",encoding="utf-8").write(s2)' "$STATE" 2>/dev/null
+[ "$(sha256sum "$STATE" | cut -d' ' -f1)" = "$BASE" ] && VAC=$((VAC+1)) || {
+  bash "$GUARD" "$STATE" >/dev/null 2>&1 && FAILED_LIST="$FAILED_LIST [مرّت:§٢/١١]" || R=$((R+1)); }
+cp "$TMP/base" "$STATE"
+
+# ---- صنف ج: حذف جدول العوائق كلّه (حقل قسمي) ----
+T=$((T+1))
+python3 -c '
+import sys
+p=sys.argv[1]; L=open(p,encoding="utf-8").read().split("\n")
+out=[l for l in L if not (l.startswith("| العائق") or l.startswith("|---") or (l.startswith("|") and ("reversible-default" in l or "blocking-" in l)))]
+assert len(out)<len(L), "لم يُحذف شيء"
+open(p,"w",encoding="utf-8").write("\n".join(out))' "$STATE" 2>/dev/null
+[ "$(sha256sum "$STATE" | cut -d' ' -f1)" = "$BASE" ] && VAC=$((VAC+1)) || {
+  bash "$GUARD" "$STATE" >/dev/null 2>&1 && FAILED_LIST="$FAILED_LIST [مرّت:العوائق]" || R=$((R+1)); }
+cp "$TMP/base" "$STATE"
+
+# ---- صنف د: حارة ثانية حية (§٤/٦) ----
+T=$((T+1))
+python3 -c '
+import sys
+p=sys.argv[1]; s=open(p,encoding="utf-8").read()
+s2=s.replace("- **حالة المهمة:**","- **المهمة الواحدة الحية:** مهمة ثانية مخالفة\n- **حالة المهمة:**",1)
+assert s2!=s, "لم تتغيّر"
+open(p,"w",encoding="utf-8").write(s2)' "$STATE" 2>/dev/null
+[ "$(sha256sum "$STATE" | cut -d' ' -f1)" = "$BASE" ] && VAC=$((VAC+1)) || {
+  bash "$GUARD" "$STATE" >/dev/null 2>&1 && FAILED_LIST="$FAILED_LIST [مرّت:حارة ثانية]" || R=$((R+1)); }
+cp "$TMP/base" "$STATE"
+
+# ---- السلبي: الحالة السليمة يجب أن تمرّ ----
+NEG=0
+bash "$GUARD" "$STATE" >/dev/null 2>&1 && NEG=1
+
+# ---- سلامة الملف بعد الامتحان ----
+AFTER=$(sha256sum "$STATE" | cut -d' ' -f1)
+RESTORED=0; [ "$AFTER" = "$BASE" ] && RESTORED=1
+
+echo "──────── الامتحان الذاتي للفاحص ────────"
+echo "  الطفرات:            $T   (المقام مشتقّ)"
+echo "  المرفوضة:           $R"
+echo "  الفارغة:            $VAC   ⟵ إن ≠ ٠ فالامتحان يحكم على نفسه بالفشل"
+echo "  السلبي يمرّ:        $([ $NEG -eq 1 ] && echo نعم || echo لا)"
+echo "  الملف أُعيد كما كان: $([ $RESTORED -eq 1 ] && echo نعم || echo لا)"
+[ -n "$FAILED_LIST" ] && echo "  المواضع الفاشلة:   $FAILED_LIST"
+
+if [ $VAC -ne 0 ] || [ $R -ne $T ] || [ $NEG -ne 1 ] || [ $RESTORED -ne 1 ]; then
+  echo "REJECTED — الفاحص غير جدير بالثقة (واو م٧)"; exit 1
 fi
-echo
-# --- إثبات اللا-فراغ: هل الفحص يعدّ فعلًا؟ ---
-LANES=$(awk -v m="المهمة الواحدة الحية" 'index($0,m) && /^- *\*\*/{n++} END{print n+0}' "$W/ok.md")
-FIELDS=$(grep -cE '^- *\*\*' "$W/ok.md" || true)
-echo "  لا-فراغ (تفسير v1.1 §٣): المقام المطبوع = $FIELDS حقلًا نقطيًّا، منها $LANES حارة حيّة"
-[ "$FIELDS" -gt 0 ] && [ "$LANES" -eq 1 ] && VACUOUS=0 || VACUOUS=1
-[ $VACUOUS -eq 0 ] && echo "             ✅ المقام غير صفري والعدّاد يقيس فعلًا" || echo "             ❌ فحص فراغي"
-echo
-# --- المحصلة مشتقّة، لا تُكتب يدًا ---
-TOTAL=$((PASS+FAIL+VAC))
-echo "  المحصلة (مشتقّة): $PASS رفض صحيح · $FAIL مرّت · $VAC طفرات فارغة · سلبي=$NEG · فراغ=$VACUOUS"
-if [ "$FAIL" -eq 0 ] && [ "$VAC" -eq 0 ] && [ "$NEG" -eq 0 ] && [ "$VACUOUS" -eq 0 ] && [ "$TOTAL" -eq 6 ]; then
-  echo "  ✅ OK — الفاحص يرفض ما يجب ويرفض ما لا يجب، ولا يمرّ فراغًا"
-  exit 0
-else
-  echo "  ❌ REJECTED — الفاحص غير سليم: لا يُعتمد حتى يُصلح"
-  exit 1
-fi
+echo "OK — $R/$T طفرات مرفوضة، صفر فراغة، والسلبي يمرّ"; exit 0
