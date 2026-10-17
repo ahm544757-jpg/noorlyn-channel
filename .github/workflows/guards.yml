@@ -81,6 +81,19 @@ jobs:
       - name: إقفال بنيتي م٩/٣ — على عيّنة عامة (السجل الحقيقي مختوم §٣/١)
         run: bash guards/phase1-ledger.sh guards/fixtures/ledger-sample.tsv ""
 
+      - name: تشخيص بيئة الحكم — لهجة awk واللغة وأي فحص يرفض (لا يُعطّل البناء)
+        continue-on-error: true
+        run: |
+          echo "── awk ──"; awk -W version 2>&1 | head -2 || awk --version 2>&1 | head -1
+          echo "── bash ──"; bash --version | head -1
+          echo "── locale ──"; locale 2>&1 | head -4
+          echo "── اختبار الفواصل الرقمية ──"
+          printf '## ع\n' | awk '/^#{1,6} /{print "  intervals: مدعومة"} !/^#{1,6} /{print "  intervals: غير مدعومة"}'
+          echo "── اختبار أصناف POSIX ──"
+          printf '  | أ |\n' | awk '/^[[:space:]]*\|/{print "  [[:space:]]: مدعومة"} !/^[[:space:]]*\|/{print "  [[:space:]]: غير مدعومة"}'
+          echo "── مخرَج الفاحص على العيّنة النظيفة (أي سطر ✗ هو الجذر) ──"
+          bash guards/state-contract.sh guards/fixtures/state-sample.md; echo "  exit=$?"
+
       - name: الامتحان الذاتي للفاحص — واو م٧ (النفي قبل الثقة)
         run: |
           # إلزامية لأن فحصًا لم يُمتحن رفضُه يُنتج أمانًا زائفًا أخطر من غيابه.
