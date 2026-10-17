@@ -73,10 +73,21 @@ jobs:
         run: |
           # faa3332a: `#{1,6}` طابق محليًّا (mawk 1.3.4-20250131) وسقط في العدّاء (mawk أقدم)
           # ⟹ رُفض الملف النظيف. فالقاعدة: تعبير POSIX يعمل في كل awk، أو لا يُكتب.
-          if grep -nE '\{[0-9]+,[0-9]*\}' guards/*.sh; then
-            echo "REJECTED — فواصل {n,m} غير محمولة بين لهجات awk؛ استعمل + أو ? أو تكرارًا صريحًا"; exit 1
+          # (١) نجمة حرفية: `\*` يُنزلها gawk إلى `*` كمّيّة (warning: escape sequence)
+          #     فلا تطابق `- **الخطوات` ويصير ROWS=0 — كما حدث على faa3332a/c5b9a13/21985a8.
+          #     المحمول بين mawk وgawk هو `[*]`.
+          if grep -nE '(awk|-v [a-z]=)' guards/*.sh | grep -F '\*' >/dev/null; then
+            echo "REJECTED — `\*` داخل نمط awk غير محمول؛ استعمل [*]"; exit 1
           fi
-          echo "  ✓ صفر فواصل {n,m} في الحراس"
+          # (٢) دلالة length(): mawk بايتات، gawk محارف تحت C.UTF-8 ⟹ حدود مختلفة.
+          if grep -l 'length(' guards/*.sh 2>/dev/null | xargs -r grep -L 'LC_ALL=C' | grep -q .; then
+            echo "REJECTED — حارس يستعمل length() بلا LC_ALL=C فتختلف دلالته بين اللهجتين"; exit 1
+          fi
+          # (٣) الفواصل الرقمية: تُمنع توحيدًا للقاعدة لا لحاجة (كلا اللهجتين تدعمها).
+          if grep -nE '\{[0-9]+,[0-9]*\}' guards/*.sh; then
+            echo "REJECTED — فواصل رقمية في الحراس؛ استعمل + أو ? أو length()"; exit 1
+          fi
+          echo "  ✓ محمول بين اللهجتين: [*] لا \* · LC_ALL=C مع length() · صفر فواصل رقمية"
 
       - name: إقفال بنيتي م٩/٣ — على عيّنة عامة (السجل الحقيقي مختوم §٣/١)
         run: bash guards/phase1-ledger.sh guards/fixtures/ledger-sample.tsv ""

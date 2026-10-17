@@ -3,6 +3,10 @@
 # السبب: بقاء استشهاد بمطهَّر يجعل الوثيقة تصف واقعًا غير موجود (م٦/٥، م١٦/٤، م٢٠/٤).
 # وتصحيح النص مرة لا يكفي — فالحارس هو ما يمنع العودة (م٢٢: مصدر حقيقة واحد).
 set -uo pipefail
+
+# دلالة length() موحّدة: mawk يعدّ بايتات وgawk يعدّ محارف تحت C.UTF-8 — وطول التجزئة
+# يُقاس هنا بـlength()، فبلا LC_ALL=C يختلف الحكم بين بيئة المؤلف وعدّاء GitHub (واردة-٠٠٥).
+export LC_ALL=C
 LOG="نبض/purges.log"
 [ -f "$LOG" ] || { echo "FAIL: no purges log at $LOG"; exit 2; }
 mapfile -t PURGED < <(grep -oE '\b[0-9a-f]+\b' "$LOG" | awk 'length($0)>=7 && length($0)<=40' | sort -u)
