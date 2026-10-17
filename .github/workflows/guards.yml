@@ -69,6 +69,9 @@ jobs:
       - name: لا استشهاد بمعرّف مطهَّر (م٦/٥، م١٦/٤)
         run: bash guards/no-purged-refs.sh
 
+      - name: إقفال بنيتي م٩/٣ — على عيّنة عامة (السجل الحقيقي مختوم §٣/١)
+        run: bash guards/phase1-ledger.sh guards/fixtures/ledger-sample.tsv ""
+
       - name: الامتحان الذاتي للفاحص — واو م٧ (النفي قبل الثقة)
         run: |
           # إلزامية لأن فحصًا لم يُمتحن رفضُه يُنتج أمانًا زائفًا أخطر من غيابه.

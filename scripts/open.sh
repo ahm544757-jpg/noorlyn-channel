@@ -4,6 +4,9 @@
 set -euo pipefail
 KEY="${CHANNEL_KEY_FILE:-/tmp/nlwork/channel.key}"
 AGE="$(command -v age || echo "$(dirname "$0")/../age")"
+# د-١٨: مساحة العمل لا تحفظ بيت التنفيذ عند الاستعادة، فيعود `age` بلا +x
+# ويظهر «Permission denied» الذي **يُقرأ كأنه رفض** — وهي علّة عطّلت افتتاح جولة كاملة.
+[ -f "$AGE" ] && [ ! -x "$AGE" ] && chmod +x "$AGE" 2>/dev/null || true
 [ -r "$KEY" ] || { echo "FAIL: key not readable at $KEY — paste it from the recruitment message (§صفر/٣)"; exit 1; }
 cd "$(dirname "$0")/.."
 git pull --quiet 2>/dev/null || echo "  (no remote yet — reading local volumes)"

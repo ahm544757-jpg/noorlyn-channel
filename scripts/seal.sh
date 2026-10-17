@@ -7,6 +7,9 @@ cd "$(dirname "$0")/.."
 
 KEY="${CHANNEL_KEY_FILE:-/tmp/nlwork/channel.key}"
 AGE="$(command -v age || echo ./age)"
+# د-١٨: مساحة العمل لا تحفظ بيت التنفيذ عند الاستعادة، فيعود `age` بلا +x
+# ويظهر «Permission denied» الذي **يُقرأ كأنه رفض** — وهي علّة عطّلت افتتاح جولة كاملة.
+[ -f "$AGE" ] && [ ! -x "$AGE" ] && chmod +x "$AGE" 2>/dev/null || true
 [ -x "$AGE" ] || { echo "FAIL: age not found"; exit 1; }
 [ -r "$KEY" ] || { echo "FAIL: decryption key not readable at $KEY (§١/٤: من اللصقة إلى /tmp وضع 600)"; exit 1; }
 PUB=$("$AGE"-keygen -y "$KEY" 2>/dev/null) || { echo "FAIL: cannot derive public key"; exit 1; }

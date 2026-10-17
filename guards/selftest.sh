@@ -85,6 +85,43 @@ open(p,"w",encoding="utf-8").write(s2)' "$STATE" 2>/dev/null
   bash "$GUARD" "$STATE" >/dev/null 2>&1 && FAILED_LIST="$FAILED_LIST [مرّت:حارة ثانية]" || R=$((R+1)); }
 cp "$TMP/base" "$STATE"
 
+# ---- صنف هـ: حذف جدول قسمي كاملًا (مسبار م٢ ب — كان الفاحص يعدّ العوائق مرتين) ----
+for A in 'الخطوات بحالاتها' '^## العوائق'; do
+  T=$((T+1))
+  python3 -c '
+import sys,re
+p=sys.argv[1]; L=open(p,encoding="utf-8").read().split("\n")
+a=sys.argv[2]
+st=next((i for i,l in enumerate(L) if re.search(a,l)), None)
+assert st is not None, "المرساة غير موجودة: "+a
+i=st+1
+while i<len(L) and not L[i].lstrip().startswith("|"): i+=1
+assert i<len(L) and L[i].lstrip().startswith("|"), "لا جدول بعد المرساة"
+j=i
+while j<len(L) and L[j].lstrip().startswith("|"): j+=1
+out=L[:i]+L[j:]
+assert len(out)<len(L), "لم يُحذف شيء ⟹ طفرة فارغة"
+open(p,"w",encoding="utf-8").write("\n".join(out))' "$STATE" "$A" 2>/dev/null
+  [ "$(sha256sum "$STATE" | cut -d' ' -f1)" = "$BASE" ] && { VAC=$((VAC+1)); FAILED_LIST="$FAILED_LIST [فارغة:جدول $A]"; } || {
+    bash "$GUARD" "$STATE" >/dev/null 2>&1 && FAILED_LIST="$FAILED_LIST [مرّت:حذف جدول $A]" || R=$((R+1)); }
+  cp "$TMP/base" "$STATE"
+done
+
+# ---- صنف و: ترويسة جدول بلا صفوف بيانات ----
+T=$((T+1))
+python3 -c '
+import sys,re
+p=sys.argv[1]; L=open(p,encoding="utf-8").read().split("\n")
+st=next(i for i,l in enumerate(L) if "الخطوات بحالاتها" in l)
+i=st+1
+while i<len(L) and not L[i].lstrip().startswith("|"): i+=1
+out=L[:i+2]+[l for l in L[i+2:] if not l.lstrip().startswith("|")]
+assert len(out)<len(L), "لم يُحذف شيء"
+open(p,"w",encoding="utf-8").write("\n".join(out))' "$STATE" 2>/dev/null
+[ "$(sha256sum "$STATE" | cut -d' ' -f1)" = "$BASE" ] && { VAC=$((VAC+1)); FAILED_LIST="$FAILED_LIST [فارغة:ترويسة بلا صفوف]"; } || {
+  bash "$GUARD" "$STATE" >/dev/null 2>&1 && FAILED_LIST="$FAILED_LIST [مرّت:ترويسة بلا صفوف]" || R=$((R+1)); }
+cp "$TMP/base" "$STATE"
+
 # ---- السلبي: الحالة السليمة يجب أن تمرّ ----
 NEG=0
 bash "$GUARD" "$STATE" >/dev/null 2>&1 && NEG=1

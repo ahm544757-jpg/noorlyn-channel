@@ -1,0 +1,6 @@
+id	doc	sec	kind	parent	area	area_inherited	disposition	rule	reason	text
+P-0005	00-الرسالة-الأولى-MASTER-PROJECT-PROMPT.md	§1	parent		Q-عام		in_plan	R0-قابل-للبناء	قابل للبناء والقياس داخل المنتج بقدرات البيئة المتاحة	Act as my complete product development team, including
+P-0007	00-الرسالة-الأولى-MASTER-PROJECT-PROMPT.md	§1	member	P-0005	Q-عام		out_of_scope_with_reason	R5-صفة-لا-مطلب	بند في قائمة أدوار الوكيل — وصف للمقعد لا مطلب منتج	Senior software architect.
+P-0188	00-الرسالة-الأولى-MASTER-PROJECT-PROMPT.md	§6	parent		Q-عام		owner_package	R3-حزمة-المالك	يتطلب موردًا أو إذنًا أو مراجعة مختص لا يملك الوكيل إنتاجها	Include a structured, expert-reviewed curriculum covering
+P-0458	00-الرسالة-الأولى-MASTER-PROJECT-PROMPT.md	§11	standalone		Q-عام		deferred_with_reason	R4-مؤجَّل-بتسلسل-المالك	مؤجَّل بسبب معلن: المالك سلسله في معالمه (٥–٨) أو قيّده بـ«عند التوفر/مستقبلًا»	Subscription and billing, when implemented.
+P-0511	00-الرسالة-الأولى-MASTER-PROJECT-PROMPT.md	§12	member	P-0500	P-تسليم-وتشغيل		representation_blocker	R2-تمثيل-شخصي	يتطلب فعل تمثيل شخصي (§١٧/٢): إنشاء حساب أو قبول شروط أو هوية أو دفع بهوية المالك	Deployment: a suitable supported cloud platform.
