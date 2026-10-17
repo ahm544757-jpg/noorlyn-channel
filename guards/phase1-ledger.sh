@@ -3,15 +3,27 @@
 # يسدّ الثغرات C0..C5 التي مرّت في v1 (حكم م٢ على v-017).
 set -uo pipefail
 T="${1:-inner/العمل/المرحلة-١-سجل-المطالب-v2.tsv}"
-M="${2-inner/العمل/المرحلة-١-المنطق-v2.md}"
-[ -f "$M" ] || M=""
 [ -f "$T" ] || { echo "FAIL: no ledger at $T"; exit 2; }
-# سجل الاكتشافات بجانب السجل (v2) أو عيّنة CI
+# د-١ (حكم م٢ v-020 §٤): مسار وثيقة ممرَّر غير فارغ وغير موجود = FAIL لا تخطٍّ صامت.
+# الوسيط الثاني الفارغ صراحةً يبقى تخطيًا معلنًا للوثيقة فقط.
+if [ $# -ge 2 ]; then
+  if [ -n "$2" ]; then
+    [ -f "$2" ] || { echo "FAIL: no logic doc at $2"; exit 2; }
+    M="$2"
+  else
+    M=""
+  fi
+else
+  M="inner/العمل/المرحلة-١-المنطق-v2.md"
+  [ -f "$M" ] || { echo "FAIL: no logic doc at $M"; exit 2; }
+fi
+# د-١: غياب سجل الاكتشافات بجانب T = FAIL لا تخطٍّ صامت للبنية الثانية
 DIR=$(dirname "$T")
 D=""
 for cand in "$DIR/المرحلة-١-سجل-الاكتشافات-v2.tsv" "$DIR/discoveries-sample.tsv"; do
   [ -f "$cand" ] && D="$cand" && break
 done
+[ -n "$D" ] || { echo "FAIL: no discoveries ledger beside $T"; exit 2; }
 python3 - "$T" "${M:-}" "${D:-}" <<'PY'
 import sys, collections, re, hashlib, os
 T, M, D = sys.argv[1], sys.argv[2] if len(sys.argv)>2 else "", sys.argv[3] if len(sys.argv)>3 else ""
@@ -113,7 +125,7 @@ if D:
             ok(f"البنية الثانية: {d_tot} اكتشافًا، صفر يتيم مسار")
             for b in sorted(BINS): print(f"    {b:20} {dcnt.get(b,0):4}")
 else:
-    print("  · لا سجل اكتشافات بجانب السجل — تُتخطى البنية الثانية في TSV")
+    print("FAIL: discoveries TSV empty after open"); sys.exit(2)
 
 # ── الوثيقة ──
 if not M:
@@ -157,17 +169,24 @@ else:
         require(k, kcnt.get(k,0))
     if kcnt.get('prose',0):
         require('prose', kcnt['prose'])
-    # C4: المناطق — كل منطقة في السجل يجب أن يظهر عددها
+    # C4 + د-٢: المناطق — المجموع وin_plan وغيره؛ وعدادات baseline الثلاثة
     acnt=collections.Counter(g(r,'area') for r in body)
     area_fail=0
     for a,c in sorted(acnt.items()):
-        # | A-قراءة-العربية | 17 |
-        hits=[int(x) for x in re.findall(rf'\|\s*{re.escape(a)}\s*\|\s*(\d+)\s*\|', s)]
+        ip=sum(1 for r in body if g(r,'area')==a and g(r,'disposition')=='in_plan')
+        oth=c-ip
+        hits=re.findall(rf'\|\s*{re.escape(a)}\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|', s)
         if not hits:
-            fail(f"المنطقة {a}={c} غائبة عن جدول §٦ (C4)"); area_fail=1
-        elif hits[0]!=c:
-            fail(f"المنطقة {a}: الوثيقة {hits[0]} والسجل {c} (C4)"); area_fail=1
-    if not area_fail: ok(f"جدول المناطق يطابق السجل ({len(acnt)} منطقة)")
+            fail(f"المنطقة {a} غائبة عن جدول §٦ بثلاثة أعمدة (C4/د-٢)"); area_fail=1
+        else:
+            t0,i0,o0=map(int, hits[0])
+            if (t0,i0,o0)!=(c,ip,oth):
+                fail(f"المنطقة {a}: الوثيقة {t0}/{i0}/{o0} والسجل {c}/{ip}/{oth} (C4/د-٢)"); area_fail=1
+    if not area_fail: ok(f"جدول المناطق يطابق السجل بثلاثة أعمدة ({len(acnt)} منطقة)")
+    if 'baseline' in col:
+        bcnt=collections.Counter(g(r,'baseline') for r in body if g(r,'disposition')=='in_plan' and g(r,'baseline')!='n/a')
+        for bk in ('verified_in_baseline','partial_or_adapter','missing_in_baseline'):
+            require(bk, bcnt.get(bk,0))
     # بصمة السجل
     sha=hashlib.sha256(open(T,'rb').read()).hexdigest()
     if sha not in s and sha[:16] not in s:
