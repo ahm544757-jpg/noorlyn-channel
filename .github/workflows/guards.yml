@@ -90,7 +90,7 @@ jobs:
           echo "  ✓ محمول بين اللهجتين: [*] لا \* · LC_ALL=C مع length() · صفر فواصل رقمية"
 
       - name: إقفال بنيتي م٩/٣ — على عيّنة عامة (السجل الحقيقي مختوم §٣/١)
-        run: bash guards/phase1-ledger.sh guards/fixtures/ledger-sample.tsv ""
+        run: bash guards/phase1-ledger.sh guards/fixtures/ledger-sample.tsv guards/fixtures/logic-sample.md
 
       - name: تشخيص بيئة الحكم — لهجة awk واللغة وأي فحص يرفض (لا يُعطّل البناء)
         continue-on-error: true

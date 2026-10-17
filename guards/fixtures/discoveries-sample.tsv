@@ -1,0 +1,6 @@
+id	text	route	status	reason
+د-٠١	عيّنة خطة	plan	open	سبب
+د-٠٢	عيّنة مالك	owner	open	سبب
+د-٠٣	عيّنة تمثيل	representation	open	سبب
+د-٠٤	عيّنة فجوة	knowledge_gap	open	سبب
+د-٠٥	عيّنة مغلقة	owner	closed	مُغلق بـ إ-٠٠٤
