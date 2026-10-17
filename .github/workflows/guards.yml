@@ -69,6 +69,15 @@ jobs:
       - name: لا استشهاد بمعرّف مطهَّر (م٦/٥، م١٦/٤)
         run: bash guards/no-purged-refs.sh
 
+      - name: لهجة awk — منع الفواصل {n,m} في الحراس (mawk القديم لا يدعمها)
+        run: |
+          # faa3332a: `#{1,6}` طابق محليًّا (mawk 1.3.4-20250131) وسقط في العدّاء (mawk أقدم)
+          # ⟹ رُفض الملف النظيف. فالقاعدة: تعبير POSIX يعمل في كل awk، أو لا يُكتب.
+          if grep -nE '\{[0-9]+,[0-9]*\}' guards/*.sh; then
+            echo "REJECTED — فواصل {n,m} غير محمولة بين لهجات awk؛ استعمل + أو ? أو تكرارًا صريحًا"; exit 1
+          fi
+          echo "  ✓ صفر فواصل {n,m} في الحراس"
+
       - name: إقفال بنيتي م٩/٣ — على عيّنة عامة (السجل الحقيقي مختوم §٣/١)
         run: bash guards/phase1-ledger.sh guards/fixtures/ledger-sample.tsv ""
 

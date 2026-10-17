@@ -5,7 +5,8 @@
 set -uo pipefail
 LOG="نبض/purges.log"
 [ -f "$LOG" ] || { echo "FAIL: no purges log at $LOG"; exit 2; }
-mapfile -t PURGED < <(grep -oE '\b[0-9a-f]{7,40}\b' "$LOG" | sort -u)
+mapfile -t PURGED < <(grep -oE '\b[0-9a-f]+\b' "$LOG" | awk 'length($0)>=7 && length($0)<=40' | sort -u)
+# بلا فواصل رقمية: فطول التجزئة يُقاس بـlength() لا بصيغة الفواصل — انظر ملاحظة اللهجة في state-contract.sh
 [ "${#PURGED[@]}" -gt 0 ] || { echo "FAIL: purges log carries no identifier — nothing to guard"; exit 2; }
 echo "فاحص الاستشهاد بالمطهَّر — ${#PURGED[@]} معرّفًا مطهَّرًا في المرجع"
 BAD=0
