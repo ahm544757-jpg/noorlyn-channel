@@ -57,7 +57,7 @@ fi
 VOL=$(printf "vault/v-%03d.enc" "$N")
 
 # ---- بصمة ما قبل الختم، تُطبع في النبض العام (بلا مضمون) ----
-PRE=$(find inner -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-16)
+PRE=$(find -L inner -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-16)
 
 tar czf /tmp/.seal-$$.tgz -C inner .
 "$AGE" -r "$PUB" -o "$VOL" /tmp/.seal-$$.tgz
@@ -70,7 +70,7 @@ if ! "$AGE" -d -i "$KEY" "$VOL" | tar tzf - >/dev/null 2>&1; then
   rm -f "$VOL"; exit 1
 fi
 
-POST=$(find inner -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-16)
+POST=$(find -L inner -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-16)
 printf '%s\n' "$(date -u +%FT%TZ)|$VOL|$PRE|$POST|$(stat -c %s "$VOL")" >> نبض/seals.log
 echo "OK sealed $VOL  ($(stat -c %s "$VOL") bytes)  inner-digest=$POST"
 echo "   next: git add -A && git commit && git push   (§٤/٨ ادفع قبل أن تفصل)"
